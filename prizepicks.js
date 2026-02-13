@@ -116,8 +116,29 @@ async function hydrate(log) {
     });
   }
 
-  log(`[PP] Normalized ${props.length} props for DB`);
-  return props;
+  // Deduplicate: PrizePicks returns multiple lines per player+stat (base/goblin/demon tiers).
+  // Keep only the "base" line — the median value for each player+stat+game group.
+  const groups = new Map();
+  for (const p of props) {
+    const key = `${p.player_name}|${p.stat_type}|${p.sport_id}|${p.game_display}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(p);
+  }
+
+  const deduped = [];
+  for (const entries of groups.values()) {
+    if (entries.length === 1) {
+      deduped.push(entries[0]);
+    } else {
+      // Sort by line ascending. Tiers: goblin (lowest) → base → demon (highest).
+      // Pick second-lowest entry as the "base" line — avoids goblin (easiest/lowest).
+      entries.sort((a, b) => a.stat_value - b.stat_value);
+      deduped.push(entries[1]);
+    }
+  }
+
+  log(`[PP] Normalized ${props.length} raw props → ${deduped.length} base lines (deduped from ${props.length - deduped.length} goblin/demon variants)`);
+  return deduped;
 }
 
 module.exports = { hydrate, fetchAllProjections };
