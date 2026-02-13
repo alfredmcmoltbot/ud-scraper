@@ -15,26 +15,34 @@ function getAgent() {
 
 async function fetchAllProjections(log) {
   log = log || console.log;
-  const agent = getAgent();
 
-  // PrizePicks returns all projections in one page (up to 10k)
-  const url = `${PP_API}?per_page=10000&state_code=${STATE_CODE}&single_stat=true&game_mode=pickem`;
+  const key = process.env.ZYTE_API_KEY;
+  if (!key) throw new Error('ZYTE_API_KEY not set');
+
+  // Use Zyte HTTP API (not proxy) for reliable large responses
+  const targetUrl = `${PP_API}?per_page=10000&state_code=${STATE_CODE}&single_stat=true&game_mode=pickem`;
   
-  const res = await fetch(url, {
-    agent,
-    headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36' },
+  const res = await fetch('https://api.zyte.com/v1/extract', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Basic ' + Buffer.from(key + ':').toString('base64'),
+    },
+    body: JSON.stringify({
+      url: targetUrl,
+      httpResponseBody: true,
+      httpRequestHeaders: [{ name: 'User-Agent', value: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36' }],
+    }),
     timeout: 120000,
-    highWaterMark: 1024 * 1024, // 1MB chunks
   });
 
-  if (!res.ok) throw new Error(`PrizePicks API ${res.status}: ${res.statusText}`);
-  
-  // Manual buffer collection — response is ~10MB, proxy can truncate with .json()
-  const chunks = [];
-  for await (const chunk of res.body) {
-    chunks.push(chunk);
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Zyte API ${res.status}: ${errText.substring(0, 200)}`);
   }
-  const raw = Buffer.concat(chunks).toString('utf8');
+
+  const zyte = await res.json();
+  const raw = Buffer.from(zyte.httpResponseBody, 'base64').toString('utf8');
   log(`[PP] Raw response: ${(raw.length / 1024 / 1024).toFixed(1)}MB`);
   const data = JSON.parse(raw);
 
