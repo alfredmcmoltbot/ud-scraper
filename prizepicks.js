@@ -96,8 +96,7 @@ async function hydrate(log) {
 
     if (line == null) continue;
 
-    // Only keep "standard" (base) lines — skip goblin and demon tiers
-    if (attrs.odds_type && attrs.odds_type !== 'standard') continue;
+    const oddsType = attrs.odds_type || 'standard'; // standard, goblin, or demon
 
     // Build game name from game description or player's team info
     const gameName = attrs.description || game.name || `${player.team || ''} Game`;
@@ -115,11 +114,13 @@ async function hydrate(log) {
       under_decimal: null,
       game_display: gameName,
       source: 'prizepicks',
+      odds_type: oddsType,
       updated_at: new Date().toISOString(),
     });
   }
 
-  log(`[PP] Normalized ${props.length} standard props (goblin/demon filtered out)`);
+  const std = props.filter(p => p.odds_type === 'standard').length;
+  log(`[PP] Normalized ${props.length} props (${std} standard, ${props.length - std} goblin/demon)`);
   return props;
 }
 

@@ -655,6 +655,7 @@ async function hydratePrizePicks() {
       under_decimal: p.under_decimal,
       event_type: 'hydration',
       source: 'prizepicks',
+      odds_type: p.odds_type || 'standard',
       recorded_at: new Date().toISOString()
     }));
 
