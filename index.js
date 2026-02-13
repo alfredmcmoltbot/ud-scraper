@@ -1,6 +1,14 @@
 const WebSocket = require('ws');
 const { createClient } = require('@supabase/supabase-js');
-const { scrapeKalshi } = require('./kalshi');
+
+// Lazy-load Kalshi module to prevent crash on import
+let scrapeKalshi = null;
+try {
+  scrapeKalshi = require('./kalshi').scrapeKalshi;
+  console.log('[BOOT] Kalshi module loaded successfully');
+} catch (err) {
+  console.error('[BOOT] Failed to load Kalshi module:', err.message);
+}
 
 // Config
 const PUSHER_URL = 'wss://ws-mt1.pusher.com/app/d65207c183930ff953dc?protocol=7&client=js&version=8.3.0&flash=false';
@@ -421,6 +429,10 @@ const server = http.createServer((req, res) => {
 const KALSHI_INTERVAL_MS = 120000; // Every 2 minutes (Kalshi updates less frequently)
 
 async function hydrateKalshi() {
+  if (!scrapeKalshi) {
+    log('WARN', 'Kalshi module not loaded, skipping');
+    return;
+  }
   log('INFO', 'Starting Kalshi hydration...');
   const startTime = Date.now();
 
@@ -522,7 +534,14 @@ async function main() {
   }, 60000);
 }
 
+process.on('uncaughtException', (err) => {
+  log('FATAL', 'Uncaught exception', { error: err.message, stack: err.stack });
+});
+process.on('unhandledRejection', (reason) => {
+  log('FATAL', 'Unhandled rejection', { reason: String(reason) });
+});
+
 main().catch(err => {
-  log('FATAL', 'Main crashed', { error: err.message });
+  log('FATAL', 'Main crashed', { error: err.message, stack: err.stack });
   process.exit(1);
 });
