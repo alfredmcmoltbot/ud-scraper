@@ -23,11 +23,20 @@ async function fetchAllProjections(log) {
   const res = await fetch(url, {
     agent,
     headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36' },
-    timeout: 60000,
+    timeout: 120000,
+    highWaterMark: 1024 * 1024, // 1MB chunks
   });
 
   if (!res.ok) throw new Error(`PrizePicks API ${res.status}: ${res.statusText}`);
-  const data = await res.json();
+  
+  // Manual buffer collection — response is ~10MB, proxy can truncate with .json()
+  const chunks = [];
+  for await (const chunk of res.body) {
+    chunks.push(chunk);
+  }
+  const raw = Buffer.concat(chunks).toString('utf8');
+  log(`[PP] Raw response: ${(raw.length / 1024 / 1024).toFixed(1)}MB`);
+  const data = JSON.parse(raw);
 
   const projections = data.data || [];
   const included = data.included || [];
